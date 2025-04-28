@@ -28,7 +28,7 @@ from psycopg2 import Error
 import psycopg2
 
 def get_connection(database_name):
-    # Функция для получения подключения к базе данных
+    # Прописываем функцию для подключения к нашей базе данных
     connection = psycopg2.connect(user="postgres",
                                   password="26102006",
                                   host="localhost",
@@ -37,7 +37,7 @@ def get_connection(database_name):
     return connection
 
 def close_connection(connection):
-    # Функция для закрытия подключения к базе данных
+    # Также сразу пишем функцию для закрытия подключения
     if connection:
         connection.close()
         print("Соединение с PostgreSQL закрыто")
@@ -46,7 +46,7 @@ try:
     connection = get_connection("BD1")
     cursor = connection.cursor()
 
-    # Создание таблицы public_transportation_statistics_by_zip_code
+    # Создаем таблицу 
     create_table_query = '''
     CREATE TABLE public_transportation_statistics_by_zip_code(
         zip_code character varying(10) NOT NULL PRIMARY KEY,
@@ -62,7 +62,7 @@ except (Exception, psycopg2.Error) as error:
     print("Ошибка при подключении или работе с PostgreSQL:", error)
 
 finally:
-    # Закрытие подключения к базе данных
+    # Закрываем подключения к базе данных
     if connection:
         close_connection(connection)
 ````
@@ -76,15 +76,15 @@ try:
     connection = get_connection("BD1")
     cursor = connection.cursor()
 
-# Путь к CSV-файлу
+# Прописываем путь к месту, где хранится CSV-файл
     csv_file_path = r"C:\Users\Пользователь\Desktop\SQL\public_transportation_statistics_by_zip_code.csv"
 
-    # Проверка существования файла
+    # Проверяем сущестует ли файл
     if not os.path.exists(csv_file_path):
         print(f"ОШИБКА: Файл '{csv_file_path}' не найден.")
         raise False # Возвращаем False при неудаче
     
-    # Вставка данных из CSV-файла с использованием COPY
+    # Вставляем данные из CSV-файла с использованием COPY
     with open(csv_file_path, 'r') as file:
         copy_query = """
         COPY public_transportation_statistics_by_zip_code(zip_code, public_transportation_pct, public_transportation_population)
@@ -93,26 +93,23 @@ try:
         cursor.copy_expert(copy_query, file)
         connection.commit()
         print("Данные успешно вставлены в таблицу 'public_transportation_statistics_by_zip_code'")
-
-except (Exception, psycopg2.Error) as error:
-    print("Ошибка при подключении или работе с PostgreSQL:", error)
 ````
 
 Получаем результат:
 
 ![image](https://github.com/user-attachments/assets/98927422-149a-4012-84c2-ddfcd9ce2d67)
 
-## Теперь найдем максимальное и минимальное процентное соотношение в данных. Значения ниже 0 будем принимать как пустое значение.
+## 3. Теперь найдем максимальное и минимальное процентное соотношение в данных. Значения ниже 0 будем принимать как пустое значение.
 ````
 try:
     connection = get_connection("BD1")
     cursor = connection.cursor()
 
-    # Запрос для поиска максимального и минимального значения процентного соотношения
+    # Составим запрос для того чтобы найти максимальное и минимальное значение процентного соотношения
     query = """
     SELECT 
-        MAX(public_transportation_pct) AS max_pct,
-        MIN(public_transportation_pct) AS min_pct
+    MAX(public_transportation_pct) AS max_pct,
+    MIN(public_transportation_pct) AS min_pct
     FROM public_transportation_statistics_by_zip_code
     WHERE public_transportation_pct >= 0;
     """
@@ -121,31 +118,33 @@ try:
     max_pct, min_pct = result
     print(f"Максимальное процентное соотношение: {max_pct}")
     print(f"Минимальное процентное соотношение: {min_pct}")
+
 ````
 Получаем результат:
+
 ![image](https://github.com/user-attachments/assets/968de915-bb41-4912-9e29-f987a6bfa4ce)
 
-## Теперь рассчитаем средний объем продаж для клиентов, проживающих в регионах с высоким уровнем использования общественного транспорта (более 10%), а также с низким уровнем использования общественного транспорта (менее или равным 10%).
+## 4. Теперь рассчитаем средний объем продаж для клиентов, проживающих в регионах с высоким уровнем использования общественного транспорта (более 10%), а также с низким уровнем использования общественного транспорта (менее или равным 10%).
 ````
 try:
     connection = get_connection("BD1")
     cursor = connection.cursor()
 
-    # SQL-запрос для расчета среднего объема продаж
+    # Запишем SQL-запрос для расчета среднего объема продаж
     query = """
     SELECT 
     CASE 
         WHEN pts.public_transportation_pct > 10 THEN 'high_transport'
         ELSE 'low_transport'
     END AS "transport_level",
-    AVG(s.sales_amount) AS "Average sales volume"
-FROM 
+    AVG(s.sales_amount) AS "average sales volume"
+    FROM 
     sales s
-JOIN 
+    JOIN 
     customers c ON s.customer_id = c.customer_id
-JOIN 
+    JOIN 
     public_transportation_statistics_by_zip_code pts ON c.postal_code = pts.zip_code
-GROUP BY 
+    GROUP BY 
     CASE 
         WHEN pts.public_transportation_pct > 10 THEN 'high_transport'
         ELSE 'low_transport'
@@ -154,10 +153,81 @@ GROUP BY
     cursor.execute(query)
     results = cursor.fetchall()
 
-# Вывод результатов
+# Выводим результат
     print("Уровень использования транспорта | Средний объем продаж")
     for row in results:
         category, avg_sales = row
         print(f"{category} | {avg_sales}")
+
 ````
 Получаем результат:
+
+![image](https://github.com/user-attachments/assets/5da52d0a-e247-4950-97df-a3060c588479)
+
+## 5. Теперь нам нужно  загрузить данные в pandas и построить гистограмму распределения (используя my_data.plot.hist(y='public_transportation_pct') для построения гистограммы).
+````
+try:
+    connection = get_connection("BD1")
+    
+    # Пишем SQL-запрос для выборки нужных данных
+    query = "SELECT * FROM public_transportation_statistics_by_zip_code WHERE public_transportation_pct >= 0;"
+    
+    # Загрузим данные в DataFrame
+    my_data = pandas.read_sql(query, connection)
+
+    # Проведем построение гистограммы распределения
+    my_data.plot.hist(y='public_transportation_pct', color='grey')
+    plt.title('Гистограмма распределения')
+    plt.xlabel('Доля пользователей общественного транспорта')
+    plt.ylabel('Частота')
+    plt.show()
+````
+Получаем результат:
+
+![image](https://github.com/user-attachments/assets/8eea4e15-8593-4ec0-97c9-b9063d0836e5)
+
+## 6. Сейчас сгруппируем клиентов по их zip_code, и посмотрите на среднее количество транзакций на одного клиента. Затем экспортируем эти данные в Excel и создадим диаграмму рассеяния, чтобы лучше понять взаимосвязь между использованием общественного транспорта и продажами.
+````
+try:
+    connection = get_connection("BD1")
+    
+    # Составляем SQL-запрос для группировки данных по zip_code
+    query = """SELECT pts.zip_code,
+    COUNT(DISTINCT c.customer_id) AS customer_count,
+    COUNT(*) / COUNT(DISTINCT c.customer_id) AS avg_transactions,
+    AVG(s.sales_amount) AS avg_sales_amount, pts.public_transportation_pct
+    FROM 
+        customers c
+    JOIN 
+        sales s ON c.customer_id = s.customer_id
+    JOIN 
+        public_transportation_statistics_by_zip_code pts ON c.postal_code = pts.zip_code
+    WHERE public_transportation_pct >= 0
+    GROUP BY pts.zip_code, pts.public_transportation_pct;
+    """
+    
+    # Загрузим данные в DataFrame
+    data = pandas.read_sql(query, connection)
+
+    # После экспортируем данные в CSV
+    csv_file = "analysis_sales.csv"
+    data.to_csv(csv_file, index=False)
+    print(f"Данные успешно экспортированы в файл: {csv_file}")
+
+    # Построим диаграмму рассеяния
+    plt.scatter(data['public_transportation_pct'], data['avg_sales_amount'], color='grey')
+    plt.title('Корреляция между уровнем использования общественного транспорта и объемом продаж')
+    plt.xlabel('Доля пользователей общественного транспорта')
+    plt.ylabel('Средний объем продаж')
+    plt.show()
+````
+Получим результат:
+
+![image](https://github.com/user-attachments/assets/14b0d0bf-9982-4fb9-a858-e703812bd5e2)
+
+## 7. На основании этого анализа, какие рекомендации вы бы дали руководству компании при рассмотрении возможностей расширения?
+Созданная диаграмма рассеяния демонстрирует нам взаимосвязь между степенью использования общественного транспорта и эффективностью продаж, мы можем увидеть, что чем активнее люди пользуются общественным транспортом, тем ниже уровень продаж. Исходя из этого, можно сделать вывод о том, что при планировании расширения бизнеса, руководство должно подумать о том, что целесообразнее открыть новые точки в областях, где низкий уровень использования общественного транспорта. 
+Таким образом, при проведении предварительного анализа на основе одного показателя, а конкретно уровня использования транспорта, мы видим, что стоит ориентировать развитие бизнеса на регионы с низкой нагрузкой на общественный транспорт. 
+
+## Вывод
+В ходе данной работы, мы рассмотрели данные переписи населения США об использовании общественного транспорта, проанализировали корреляцию между уровнем использования общественного транспорта с продажами в организации в определенном регионе.
